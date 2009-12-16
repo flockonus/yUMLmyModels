@@ -16,9 +16,8 @@ models_achados = []
 puts "Estou em:"+Dir::pwd()
 Find.find('./app/models') do |path|
 	
+  # Coleta todos os .rb de models
 	if File.basename(path)[0,1] != '.' && !FileTest.directory?(path)
-		#puts "Estou em:"+path
-		#puts "                     SOU RB !!!" 
 		models_achados << path
 	end
 end
@@ -32,26 +31,73 @@ models_achados.each{ |model_path|
 puts 
 
 
+   
 
 $erro = []
 $falhas = []
 
-def le_linha(model, path)
-	if model.eof?
+#Funcao recursiva que soh para quando acha uma linha valida ou EOF, nunca setar seek_end de fora!
+def le_linha(model, path, seek_end = false)
+	# Ops.... acabou o arquivo <antes do esperado?>
+  if model.eof?
 		$erro.push path
 		model.close
 		false
-	else
-		model.readline
+  #Consegui uma linha ok, aprofunda ate ser valida!
+  else
+		l = model.readline
+    
+    # IF para o caso da linha ser um comentario inline (#)!
+    if l.lstrip[0,1] == '#'
+      return le_linha(model, path)
+    end
+
+    # IF para o caso da linha ser um comentario de bloco (=begin)
+    if l[0,6] == '=begin'
+      return le_linha(model, path, true) #busca ate achar o =end
+    end
+    
+    # esse IF denota que esta dentro de linha de comentario 
+    if seek_end == true
+      if l[0,4] == '=end'
+        return le_linha(model, path, false)
+      else
+        return le_linha(model, path, true)
+      end
+    end
+    
+    # Se passou tudo acima eh uma linha valida! 
+    return l
+    
 	end
 end
 
 
+#Watch n Learn the power of eval! =D
+def has_many(classe, *args)
+  puts "minha classe: #{classe.to_s}"
+  puts "minhas entranhas: #{args.inspect}"
+end
+
+
+
+
+
+
+
+
+
+
+
+
 models_achados.each do |model_path|
-	
-	#ERRO: if model_path[-19..-1] == "controle_estoque.rb"
-	
-	model = File.open(model_path, 'r')
+  
+  if model_path[-19..-1] == "controle_estoque.rb"
+	 sleep 0
+  end
+  
+  
+	model = File.open model_path, 'r' 
 	
 	puts ''
 	puts "  :: Abrindo  :: #{model_path} "
@@ -66,72 +112,71 @@ models_achados.each do |model_path|
 	
 	
 	# Procura o nome da CLASS	(essencial)
-#print '0' if $debug	
 	next unless linha = le_linha(model, model_path)
 	while( !linha.include?( 'class' ) ) do	
 		next unless linha = le_linha(model, model_path)
 		#puts 'nao... '+linha[1..10]
 	end 
 	
-#print '1' if $debug
 	index = linha.index('class')+6
-	while( linha[index,1] != " ") do 
+	until( linha[index,1] == " " || linha[index,1].empty? ) do 
 		nome_classe += linha[index, 1].to_s
 		index +=1
 	end
 	nome_classe.strip!
 	
 	
-#print '2' if $debug
 	#Procura o nome da TABELA	(essencial)
-	
-	tem_nome_tabela = false
-	model_copy = model.clone
-	model_copy.rewind
-	until( model_copy.eof? ) do
-		if model_copy.readline.to_s.include?( 'set_table_name' )
-			tem_nome_tabela = true;
+	model2 = File.open model_path, 'r'
+	until( model2.eof? ) do
+   line = model2.readline 
+		if line.include?( 'set_table_name' )
+      #PARSE a <line> e extrai o nome da tabela por expressao reg
+      line.gsub! 'set_table_name', ''
+      line.gsub! "'", ""
+      line.gsub! '"', ''
+      line.gsub! ':', ''
+      nome_tabela = line.strip
+      sleep 0
+      next unless linha = le_linha(model, model_path)
 			break;
 		end
-	end
-	
-	if tem_nome_tabela
-		while( !linha.include?( 'set_table_name' ) ) do
-			next unless linha = le_linha(model, model_path)
-			#puts 'nao... '+linha[1..10]
-		end 
-	else
-			p "Essa tabela nao tem nome!"
-	end
-	
-#print '3' if $debug
-	index = linha.index('set_table_name')+16
-	while(linha[index,1] != "'" && linha[index,1] != '"' && linha[index,1] != nil ) do 
-		nome_tabela += linha[index, 1].to_s
-		index +=1
-	end
-	nome_tabela.strip!
-
-
+  end
+  model2.close()
+  
 	puts ""+nome_classe+"   (#{nome_tabela}) " if $debug
-
+  
 	#TODO pegar :class_name (se tiver), se nao tiver, devo inferir que eh do mesmo NameSpace?
-	#TODO pegar a foreing_key
+	#TODO FUTURO pegar a foreing_key
 	puxa_linha = true
-	#until(linha.include?('named_s') || linha.include?('validates_') || linha.include?('named_') ) do
+	# Procurar HAS_MANY's ateh achar uma linha comecando por END 
 	while(linha.strip.index( /^end/).nil? ) do
-		next unless linha = le_linha(model, model_path) if puxa_linha
+		next unless( linha = le_linha(model, model_path) if(puxa_linha))
+    
 		if(linha.include? "has_many")
-			classe_apontada = ""
-			index = linha.index('has_many')+10
-			while(linha[index,1] != ',' && linha[index,1] != nil  ) do
-				classe_apontada += linha[index,1]
-				index += 1
-			end
-			classes_apontadas << classe_apontada
+      # Remove o \n e os comentarios de linha
+      linha = linha[0..-2].match(/([^#]*)/).to_s
+      while linha.rstrip[-1,1] == ','
+        linha += le_linha(model, model_path).match(/([^#]*)/).to_s
+      end
+      puts(">>>>>>> vou eval: #{linha}")
+      
+      
+=begin
+    #  CASO + CABELUDO (imaginado ateh agora): 
+  has_many :conversacaos_clientes, :foreign_key => :pessoa_id, # adasdasdad
+    :class_name => "Comercial::Conversacoes", :dependent => :destroy
+=end
+			#RECONTRUIR O PARSE AQUI A PARTIR DA MINHA FUNC has_many ;)
+      #classe_apontada = ""
+			#index = linha.index('has_many')+10
+			#while(linha[index,1] != ',' && linha[index,1] != nil  ) do
+			#	classe_apontada += linha[index,1]
+			#	index += 1
+			#end
+			#classes_apontadas << classe_apontada
 		end
 	end
-#print '5' if $debug
 
 	#print " >> aponto para: >> "+classe_apontada if $debug
 	classes_apontadas.each {|classe_a| puts("    >"+'namespace?::'+ActiveRecord::Base.class_name(classe_a.to_s)+" ") }
@@ -143,7 +188,7 @@ end
 
 unless $erro.empty?
 	$erros.each do  |e|
-		puts "O arquivo #{e} não pode ser Parseado corretamente"
+		puts "O arquivo #{e} nao pode ser Parseado corretamente"
 	end
 end
 
