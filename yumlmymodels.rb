@@ -3,7 +3,6 @@
 #FIX Objetivo: Fazer o parse de todas as classes de model em Rails, e descobrir todos has_many de cada classe, para poder desenhar.
 #	Não tem o objetivo de validar as relacoes, só parsear e tradur em sintaxe http://yuml.me/diagram/scruffy/class/draw
 
-
 require 'find'
 require 'fileutils'
 
@@ -30,9 +29,6 @@ models_achados.each{ |model_path|
 }
 puts 
 
-
-   
-
 $erro = []
 $falhas = []
 
@@ -40,9 +36,9 @@ $falhas = []
 def le_linha(model, path, seek_end = false)
 	# Ops.... acabou o arquivo <antes do esperado?>
   if model.eof?
-		$erro.push path
-		model.close
-		false
+    $erro.push path
+    model.close
+    false
   #Consegui uma linha ok, aprofunda ate ser valida!
   else
 		l = model.readline
