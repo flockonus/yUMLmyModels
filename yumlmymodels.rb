@@ -1,14 +1,35 @@
 require 'find'
 require 'rubygems'
-require 'active_record'
+
+require 'activerecord'
+
+#gem 'activesupport'
+#  require 'inflector_portuguese.rb'
+
 require 'yaml'
 
 path_rails = $*[0] rescue "."
+
+atributos, sozinhas = false
+ARGV[1,12].each do |arg|
+  case arg
+    when 'atributos' then
+      atributos = true;
+      break
+    when 'sozinhas' then
+      sozinhas = true;
+      break
+    end
+end
+
+
+
+
 path_models = "#{path_rails}/app/models"
 database = YAML.load_file("#{path_rails}/config/database.yml")['development']
 yUML = []
 entidades = []
-regex = /(class|set_table_name|has_many|has_one|belongs_to) +['":]?([\w:]+)['":]?(\n* *,\n* *:[\w:]+ +=> +['":]?[\w:]+['":]?| *< *[\w:]+)*/
+regex = /(class|set_table_name|has_many|has_one|belongs_to) +['":]?([\w:]+)['":]?(\n* *,\n* *:[\w:]+ +=> *['":]?[\w:]+['":]?| *< *[\w:]+)*/
 connection = ActiveRecord::Base.establish_connection(
     :adapter  => database["adapter"],
     :host     => database["host"],
@@ -17,9 +38,26 @@ connection = ActiveRecord::Base.establish_connection(
     :database => database["database"]
 )
 
-begin
+def extrai_name_space(str, qualidade = :first)
+    
+  if str.include?(':')
+    if qualidade == :full
+      str = str[0..str.rindex(':') -2]
+      
+    elsif qualidade == :first
+      str = str[0..str.index(':') -1]
+    end
+  else
+    str = str[0..-1]
+  end
+  
+  str
+end
+
+
+#begin
   Find.find(path_models) do |path|
-    next if File.basename(path)[0,1] == '.' or FileTest.directory?(path)
+    next if File.basename(path)[0,1] == '.' or FileTest.directory?(path) || File.basename(path)[-3,3] != ".rb" 
     entidade = {}
     file = File.open(path).readlines.join
     file.gsub(/(^|\n)=begin.*\n=end/, "").gsub!(/#.*\n/, "")
@@ -37,7 +75,8 @@ begin
       match
     end
 
-    if entidade[:super_class] == "ActiveRecord::Base"
+    #Soh entra aqui caso o segundo argumento seja <atributos> 
+    if entidade[:super_class] == "ActiveRecord::Base" && ( atributos ) 
       eval <<-EOF
         class Entidade < #{entidade[:super_class]}
           #{"set_table_name :" + entidade[:set_table_name] if entidade[:set_table_name]}
@@ -46,21 +85,75 @@ begin
       EOF
     end
 
+    entidade[:usado] = false
     entidades << entidade
-    print "#{entidade.inspect}\n\n"
+    #print "#{entidade.inspect}\n\n"
   end
-
+  
+  entidades.uniq!
   entidades.each do |entidade|
-    yUML << "[#{entidade[:class]}|#{entidade[:attributes] * ";" if entidade[:attributes]}]"
+    name_space = extrai_name_space entidade[:class], :full
+    name_space += '::'unless name_space.empty?
+    
+    if( (ARGV[2] == 'atributos') rescue false)
+      yUML << "[#{entidade[:class]}|#{entidade[:attributes] * ";" if entidade[:attributes]}]"
+    end
     if not entidade[:super_class].nil? and entidade[:super_class] != "ActiveRecord::Base"
       yUML << "[#{entidade[:class]}]^[#{entidade[:super_class]}]"
     end
     entidade[:has_many] and entidade[:has_many].each do |relacao|
-      yUML << "[#{entidade[:class]}]1-0..*[#{relacao[:class_name] || relacao[:has_many]}]"
+      yUML << "[#{entidade[:class]}]1-0..*[#{relacao[:class_name] || relacao[:has_many]}]" #DETECTOR DE CLASSES INATIVA TABAJARA
+      # Gambiarra no gsub abaixo! (questao de Inflection)
+      #yUML << "[#{entidade[:class]}]1-0..*[#{relacao[:class_name] || name_space + ActiveRecord::Base.class_name(relacao[:has_many].gsub(/ornecedores$/, 'ornecedor' ))}]"
+      entidade[:usado] = true
+    end
+    
+    
+    if !entidade[:usado] && sozinhas
+      yUML << "[#{ entidade[:class] }]"
     end
   end
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  #IMPRESSAO DO CODIGO
+  print yUML.join(", ")
+  
+  saida = File.new("yUMLmyModels.txt", 'w')
+  
+  saida.puts"Código gerado automaticamente por yUMLmyModels "
+  saida.puts Time.now().to_s
+  saida.puts()
+  
+  
+  old_name_space = ""
+  yUML.each{ |y|
+    # Separar por NameSpace
+    name_space = extrai_name_space(y[1..-1])
+    if name_space != old_name_space
+      saida.puts ''
+      old_name_space = name_space
+    end
+    
+    saida.print y
+    saida.print "," unless yUML.last == y || name_space != old_name_space 
+    saida.print "\n"
+  }
+  saida.close
+  puts ""
+  puts ""
+  puts "Arquivo de saida gerado com sucesso! yUMLmyModels.txt"
+  puts "#{yUML.size} models mapeados"
+  puts ""
+  
+  
+#rescue Exception => e
+#  print "ERRROR: \n#{e}\n"
+#end
 
-  p yUML.join(",")
-rescue Exception => e
-  print "ERRROR: \n#{e}\n"
-end
