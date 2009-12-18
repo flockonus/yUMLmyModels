@@ -60,7 +60,12 @@ end
     next if File.basename(path)[0,1] == '.' or FileTest.directory?(path) || File.basename(path)[-3,3] != ".rb" 
     entidade = {}
     file = File.open(path).readlines.join
+    #FIXME a EXPREG de remover comentario nao ta funcionando!
     file.gsub(/(^|\n)=begin.*\n=end/, "").gsub!(/#.*\n/, "")
+    1! olha pra cima 1!
+    
+    
+    
     file.gsub!(regex).each do |match|
       atributo, valor = $1.to_sym, $2
       if atributo.to_s =~ /has_many|has_one|belongs_to/
@@ -93,7 +98,7 @@ end
   entidades.uniq!
   entidades.each do |entidade|
     name_space = extrai_name_space entidade[:class], :full
-    name_space += '::'unless name_space.empty?
+    name_space += '::' unless name_space.empty?
     
     if( (ARGV[2] == 'atributos') rescue false)
       yUML << "[#{entidade[:class]}|#{entidade[:attributes] * ";" if entidade[:attributes]}]"
