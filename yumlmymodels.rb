@@ -1,12 +1,12 @@
 require 'find'
 require 'rubygems'
-
-require 'activerecord'
-
+require 'active_record' rescue require 'activerecord'
 #gem 'activesupport'
 #  require 'inflector_portuguese.rb'
-
 require 'yaml'
+
+
+t1 = Time.now
 
 path_rails = $*[0] rescue "."
 
@@ -62,10 +62,6 @@ end
     file = File.open(path).readlines.join
     #FIXME a EXPREG de remover comentario nao ta funcionando!
     file.gsub(/(^|\n)=begin.*\n=end/, "").gsub!(/#.*\n/, "")
-    1! olha pra cima 1!
-    
-    
-    
     file.gsub!(regex).each do |match|
       atributo, valor = $1.to_sym, $2
       if atributo.to_s =~ /has_many|has_one|belongs_to/
@@ -107,9 +103,15 @@ end
       yUML << "[#{entidade[:class]}]^[#{entidade[:super_class]}]"
     end
     entidade[:has_many] and entidade[:has_many].each do |relacao|
-      yUML << "[#{entidade[:class]}]1-0..*[#{relacao[:class_name] || relacao[:has_many]}]" #DETECTOR DE CLASSES INATIVA TABAJARA
+      #yUML << "[#{entidade[:class]}]1-0..*[#{relacao[:class_name] || relacao[:has_many]}]" #DETECTOR DE CLASSES INATIVA TABAJARA
       # Gambiarra no gsub abaixo! (questao de Inflection)
-      #yUML << "[#{entidade[:class]}]1-0..*[#{relacao[:class_name] || name_space + ActiveRecord::Base.class_name(relacao[:has_many].gsub(/ornecedores$/, 'ornecedor' ))}]"
+      yUML << "[#{entidade[:class]}]1-0..*>[#{relacao[:class_name] || name_space + ActiveRecord::Base.class_name(relacao[:has_many].gsub(/ornecedores$/, 'ornecedor' )).gsub(/ateriai$/, 'aterial' ) }]"                     
+        # yUML << "[#{entidade[:class]}]1-0..*[#{relacao[:class_name] || name_space + ActiveRecord::Base.class_name(relacao[:has_many].gsub(/ornecedores$/, 'ornecedor' ))}]"
+      entidade[:usado] = true
+    end
+    entidade[:has_one] and entidade[:has_one].each do |relacao|
+      yUML << "[#{entidade[:class]}]1-1>[#{relacao[:class_name] || name_space + ActiveRecord::Base.class_name(relacao[:has_many].gsub(/ornecedores$/, 'ornecedor' )).gsub(/ateriai$/, 'aterial' ) }]"
+        # yUML << "[#{entidade[:class]}]1-0..*[#{relacao[:class_name] || name_space + ActiveRecord::Base.class_name(relacao[:has_many].gsub(/ornecedores$/, 'ornecedor' ))}]"
       entidade[:usado] = true
     end
     
@@ -119,20 +121,14 @@ end
     end
   end
   
-  
-  
-  
-  
-  
-  
-  
+  yUML.sort!
   
   #IMPRESSAO DO CODIGO
   print yUML.join(", ")
   
   saida = File.new("yUMLmyModels.txt", 'w')
   
-  saida.puts"Código gerado automaticamente por yUMLmyModels "
+  saida.puts"Código gerado automaticamente por yUMLmyModels (#{Time.now - t1}s)"
   saida.puts Time.now().to_s
   saida.puts()
   
@@ -143,10 +139,14 @@ end
     name_space = extrai_name_space(y[1..-1])
     if name_space != old_name_space
       saida.puts ''
+      #Mudou de NameSpace, coloca uma nota com o nome donovo namedspace...
+      
+      saida.puts "[note: #{name_space} {bg:green}]" 
+      
       old_name_space = name_space
     end
     
-    saida.print y
+    saida.print y.gsub name_space+'::', ''
     saida.print "," unless yUML.last == y || name_space != old_name_space 
     saida.print "\n"
   }
