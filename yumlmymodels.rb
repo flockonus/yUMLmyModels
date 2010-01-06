@@ -26,17 +26,20 @@ end
 
 
 path_models = "#{path_rails}/app/models"
-database = YAML.load_file("#{path_rails}/config/database.yml")['development']
 yUML = []
 entidades = []
-regex = /(class|set_table_name|has_many|has_one|belongs_to) +['":]?([\w:]+)['":]?(\n* *,\n* *:[\w:]+ +=> *['":]?[\w:]+['":]?| *< *[\w:]+)*/
-connection = ActiveRecord::Base.establish_connection(
-    :adapter  => database["adapter"],
-    :host     => database["host"],
-    :username => database["username"],
-    :password => database["password"],
-    :database => database["database"]
-)
+regex = /(class|set_table_name|has_many|has_many_with_attributes|has_one|belongs_to) +['":]?([\w:]+)['":]?(\n* *,\n* *:[\w:]+ +=> *['":]?[\w:]+['":]?| *< *[\w:]+)*/
+
+if atributos
+  database = YAML.load_file("#{path_rails}/config/database.yml")['development']
+  connection = ActiveRecord::Base.establish_connection(
+      :adapter  => database["adapter"],
+      :host     => database["host"],
+      :username => database["username"],
+      :password => database["password"],
+      :database => database["database"]
+  )
+end
 
 def extrai_name_space(str, qualidade = :first)
     
@@ -60,11 +63,12 @@ end
     next if File.basename(path)[0,1] == '.' or FileTest.directory?(path) || File.basename(path)[-3,3] != ".rb" 
     entidade = {}
     file = File.open(path).readlines.join
-    #FIXME a EXPREG de remover comentario nao ta funcionando!
-    file.gsub(/(^|\n)=begin.*\n=end/, "").gsub!(/#.*\n/, "")
+    file = file.gsub(/(^|\n)=begin.*\n=end/, "").gsub(/#.*\n/, "")
     file.gsub!(regex).each do |match|
       atributo, valor = $1.to_sym, $2
-      if atributo.to_s =~ /has_many|has_one|belongs_to/
+      if atributo.to_s =~ /has_many|has_many_with_attributes|has_one|belongs_to/
+        # Aqui converte de has_many_with_attributes -para-> has_many
+        atributo = :has_many if atributo == :has_many_with_attributes
         (entidade[atributo] ||= []) << {atributo => valor}
         match.scan(/[\w:]+/).each_slice(2) do |a, v|
           entidade[atributo].last[a.gsub(/^:/, "").to_sym] = v.gsub(/^:/, "")
@@ -96,7 +100,7 @@ end
     name_space = extrai_name_space entidade[:class], :full
     name_space += '::' unless name_space.empty?
     
-    if( (ARGV[2] == 'atributos') rescue false)
+    if( atributos )
       yUML << "[#{entidade[:class]}|#{entidade[:attributes] * ";" if entidade[:attributes]}]"
     end
     if not entidade[:super_class].nil? and entidade[:super_class] != "ActiveRecord::Base"
