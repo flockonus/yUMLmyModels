@@ -6,7 +6,7 @@ require 'active_record' rescue require 'activerecord'
 require 'yaml'
 
 
-t1 = Time.now
+$t1 = Time.now
 
 path_rails = $*[0] rescue "."
 
@@ -22,11 +22,6 @@ ARGV[1,12].each do |arg|
     end
 end
 
-class String
-  def to_class_name
-    ActiveRecord::Base.class_name(self.gsub(/ornecedores$/, 'ornecedor' )).gsub(/ateriai$/, 'aterial' )
-  end
-end
 
 
 path_models = "#{path_rails}/app/models"
@@ -45,6 +40,12 @@ if atributos
   )
 end
 
+class String
+  def to_class_name
+    ActiveRecord::Base.class_name(self.gsub(/ornecedores$/, 'ornecedor' )).gsub(/ateriai$/, 'aterial' )
+  end
+end
+
 def extrai_name_space(str, qualidade = :first)
     
   if str.include?(':')
@@ -58,6 +59,10 @@ def extrai_name_space(str, qualidade = :first)
   end
   
   str
+end
+
+def unico!
+  ($t1 - Time.now).to_s.gsub('.','').gsub('-','')
 end
 
 
@@ -84,13 +89,19 @@ end
     end
 
     #Soh entra aqui caso tenha o argumento <atributos> 
-    if entidade[:super_class] == "ActiveRecord::Base" && ( atributos ) 
+    if entidade[:super_class] == "ActiveRecord::Base" && ( atributos )
+      
+      diferencial = unico!
       eval <<-EOF
-        class Entidade < #{entidade[:super_class]}
-          #{"set_table_name :" + entidade[:set_table_name] if entidade[:set_table_name]}
+        class Entidade#{diferencial} < #{entidade[:super_class]}
+          #{"set_table_name :" + entidade[:set_table_name] if entidade[:set_table_name]}  rescue puts("   !"+entidade[:class])
         end
-        entidade[:attributes] = Entidade.new.attribute_names
+        entidade[:attributes] = Entidade#{diferencial}.new.attribute_names rescue puts("   !"+entidade[:class])
       EOF
+      
+      #if entidade[:class] == 'Expedicao::AssistenciaProduto'
+      #end
+      
     end
 
     entidade[:usado] = false
@@ -164,7 +175,7 @@ end
   
   saida = File.new("yUMLmyModels.txt", 'w')
   
-  saida.puts "Código gerado automaticamente por yUMLmyModels (#{Time.now - t1}s)"
+  saida.puts "Código gerado automaticamente por yUMLmyModels (#{Time.now - $t1}s)"
   saida.puts "Argumentos: #{ARGV.join(", ")}"
   saida.puts Time.now().to_s
   saida.puts()
@@ -188,7 +199,7 @@ end
   saida.close
   puts ""
   puts "Arquivo de saida gerado com sucesso! yUMLmyModels.txt"
-  puts "#{yUML.size} models mapeados (#{Time.now - t1}s)"
+  puts "#{yUML.size} models mapeados (#{Time.now - $t1}s)"
   puts ""
   
   
