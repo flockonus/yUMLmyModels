@@ -10,19 +10,23 @@ t1 = Time.now
 
 path_rails = $*[0] rescue "."
 
-atributos, sozinhas = false
+atributos, sozinhas, belongs = false
 ARGV[1,12].each do |arg|
   case arg
     when 'atributos' then
       atributos = true;
-      break
     when 'sozinhas' then
       sozinhas = true;
-      break
+    when 'belongs' then
+      belongs = true;
     end
 end
 
-
+class String
+  def to_class_name
+    ActiveRecord::Base.class_name(self.gsub(/ornecedores$/, 'ornecedor' )).gsub(/ateriai$/, 'aterial' )
+  end
+end
 
 
 path_models = "#{path_rails}/app/models"
@@ -45,10 +49,9 @@ def extrai_name_space(str, qualidade = :first)
     
   if str.include?(':')
     if qualidade == :full
-      str = str[0..str.rindex(':') -2]
-      
+      str = str[0..str.rindex(':') -2] rescue ""
     elsif qualidade == :first
-      str = str[0..str.index(':') -1]
+      str = str[0..str.index(':') -1] rescue ""
     end
   else
     str = str[0..-1]
@@ -80,7 +83,7 @@ end
       match
     end
 
-    #Soh entra aqui caso o segundo argumento seja <atributos> 
+    #Soh entra aqui caso tenha o argumento <atributos> 
     if entidade[:super_class] == "ActiveRecord::Base" && ( atributos ) 
       eval <<-EOF
         class Entidade < #{entidade[:super_class]}
@@ -100,39 +103,69 @@ end
     name_space = extrai_name_space entidade[:class], :full
     name_space += '::' unless name_space.empty?
     
+    # ATRIBUTOS
     if( atributos )
       yUML << "[#{entidade[:class]}|#{entidade[:attributes] * ";" if entidade[:attributes]}]"
     end
+    
+    # HERANCA
     if not entidade[:super_class].nil? and entidade[:super_class] != "ActiveRecord::Base"
       yUML << "[#{entidade[:class]}]^[#{entidade[:super_class]}]"
     end
+    
+    # HAS_MANY
     entidade[:has_many] and entidade[:has_many].each do |relacao|
       #yUML << "[#{entidade[:class]}]1-0..*[#{relacao[:class_name] || relacao[:has_many]}]" #DETECTOR DE CLASSES INATIVA TABAJARA
       # Gambiarra no gsub abaixo! (questao de Inflection)
-      yUML << "[#{entidade[:class]}]1-0..*>[#{relacao[:class_name] || name_space + ActiveRecord::Base.class_name(relacao[:has_many].gsub(/ornecedores$/, 'ornecedor' )).gsub(/ateriai$/, 'aterial' ) }]"                     
+      yUML << "[#{entidade[:class]}]1-0..*>[#{relacao[:class_name] || name_space + relacao[:has_many].to_class_name }]"                     
         # yUML << "[#{entidade[:class]}]1-0..*[#{relacao[:class_name] || name_space + ActiveRecord::Base.class_name(relacao[:has_many].gsub(/ornecedores$/, 'ornecedor' ))}]"
       entidade[:usado] = true
     end
+    
+    # HAS_ONE
     entidade[:has_one] and entidade[:has_one].each do |relacao|
-      yUML << "[#{entidade[:class]}]1-1>[#{relacao[:class_name] || name_space + ActiveRecord::Base.class_name(relacao[:has_many].gsub(/ornecedores$/, 'ornecedor' )).gsub(/ateriai$/, 'aterial' ) }]"
+#puts relacao.inspect
+      yUML << "[#{entidade[:class]}]1-1>[#{relacao[:class_name] || name_space + relacao[:has_one].to_class_name }]"
         # yUML << "[#{entidade[:class]}]1-0..*[#{relacao[:class_name] || name_space + ActiveRecord::Base.class_name(relacao[:has_many].gsub(/ornecedores$/, 'ornecedor' ))}]"
       entidade[:usado] = true
     end
     
+    # BELONGS_TO
+    ( entidade[:belongs_to] && belongs) and entidade[:belongs_to].each do |relacao|
+      if( relacao[:class_name] )
+        yUML << "[#{ entidade[:class] }]B->[#{ relacao[:class_name] || name_space + relacao[:class_name].to_class_name }]"
+          # yUML << "[#{entidade[:class]}]1-0..*[#{relacao[:class_name] || name_space + ActiveRecord::Base.class_name(relacao[:has_many].gsub(/ornecedores$/, 'ornecedor' ))}]"
+        entidade[:usado] = true
+      end
+    end
     
+    # CLASSES SEM RELACOES
     if !entidade[:usado] && sozinhas
       yUML << "[#{ entidade[:class] }]"
     end
   end
   
+  
+  
+  
+  #entidades.each { |e|    puts e.inspect  }
+  
   yUML.sort!
   
+  
+  
+  
+  
   #IMPRESSAO DO CODIGO
-  print yUML.join(", ")
+  #print yUML.join(", ")
+  
+  puts ""
+  puts "Argumentos: #{ARGV.join(", ")}"
   
   saida = File.new("yUMLmyModels.txt", 'w')
   
-  saida.puts"Código gerado automaticamente por yUMLmyModels (#{Time.now - t1}s)"
+  saida.puts "Código gerado automaticamente por yUMLmyModels (#{Time.now - t1}s)"
+  saida.puts "Argumentos: #{ARGV.join(", ")}"
   saida.puts Time.now().to_s
   saida.puts()
   
@@ -143,22 +176,19 @@ end
     name_space = extrai_name_space(y[1..-1])
     if name_space != old_name_space
       saida.puts ''
-      #Mudou de NameSpace, coloca uma nota com o nome donovo namedspace...
-      
+      #Mudou de NameSpace, coloca uma nota com o nome do novo namespace...
       saida.puts "[note: #{name_space} {bg:green}]" 
-      
-      old_name_space = name_space
     end
     
-    saida.print y.gsub name_space+'::', ''
-    saida.print "," unless yUML.last == y || name_space != old_name_space 
+    saida.print y.gsub( name_space+'::', '')
+    saida.print "," unless yUML.last == y
     saida.print "\n"
+    old_name_space = name_space if name_space != old_name_space
   }
   saida.close
   puts ""
-  puts ""
   puts "Arquivo de saida gerado com sucesso! yUMLmyModels.txt"
-  puts "#{yUML.size} models mapeados"
+  puts "#{yUML.size} models mapeados (#{Time.now - t1}s)"
   puts ""
   
   
