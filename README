@@ -1,0 +1,32 @@
+HOW TO USE
+
+yUMLmyModels v1.0.1 Guenka Software Ltda. Brazil
+http://github.com/flockonus/yUMLmyModels
+OpenSouce version
+
+Usage:     ruby yumlmymodels.rb PATH_TO_RAILS_PROJECT arg1 arg2 ...
+
+# The basic usage takes 1 parameter, that is, the path to the Rails project.
+# By default, it maps heritage and relations: has_one, has_many and has_many_with_attributes
+# The relations are translated to the yUML syntax http://yuml.me
+# A file is generated at the root: yUMLmyModels.txt
+# The arguments does not conflict
+
+
+ARGUMENTS:
+	
+-a OR atributos
+	Attempt to open each class that inherits ActiveRecord::Base, the attributes are printed
+
+-b OR belongs
+	Maps the belong_to relation declared inside the class
+
+-s OR sozinhas
+	(not tested yet)
+	Draw every class, even if it has no relation to other class
+
+(anything else)
+	Display this file and execute no code.
+
+
+Doc by Fabiano Pereira Soriani, 2010-01-07

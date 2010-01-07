@@ -13,14 +13,23 @@ path_rails = $*[0] rescue "."
 atributos, sozinhas, belongs = false
 ARGV[1,12].each do |arg|
   case arg
-    when 'atributos' then
+    when 'atributos', '-a' then
       atributos = true;
-    when 'sozinhas' then
+    when 'sozinhas', '-s' then
       sozinhas = true;
-    when 'belongs' then
+    when 'belongs', '-b' then
       belongs = true;
+    #when '-?', 'help'
+    else
+      puts("")#; puts("***   No code was generated!   ***");puts("")
+      help_file = File.open "README"
+      puts '*  '+help_file.read(50_000).gsub( /(\n)/, '\1*  ')
+      puts(""); puts("***   No code was generated!   ***");puts("")
+      Kernel.exit
     end
 end
+
+
 
 
 
@@ -94,7 +103,7 @@ end
       diferencial = unico!
       eval <<-EOF
         class Entidade#{diferencial} < #{entidade[:super_class]}
-          #{"set_table_name :" + entidade[:set_table_name] if entidade[:set_table_name]}  rescue puts("   !"+entidade[:class])
+         #{"set_table_name :" + entidade[:set_table_name] if entidade[:set_table_name]}  rescue puts("   !"+entidade[:class])
         end
         entidade[:attributes] = Entidade#{diferencial}.new.attribute_names rescue puts("   !"+entidade[:class])
       EOF
@@ -159,9 +168,15 @@ end
   
   
   
-  #entidades.each { |e|    puts e.inspect  }
+  
+  # Colocar os atributos primeiro corrige um pequeno bug no yUML de mah geracao
+  yUML.each { |y| y.gsub!('|', '!') } if atributos
   
   yUML.sort!
+  
+  # Colocar os atributos primeiro corrige um pequeno bug no yUML de mah geracao
+  yUML.each { |y| y.gsub!('!', '|') } if atributos
+  
   
   
   
